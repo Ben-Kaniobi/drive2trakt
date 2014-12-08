@@ -54,9 +54,9 @@ fi
 # Config file inport and global variables ------------------------------
 
 # Variables
-FILE_MOVIES="_Movies.txt"
-FILE_NOTFOUND="_Not_found_Movies.txt"
-FILE_FOUND="_Found_Movies.txt"
+FILE_MOVIES="_Movie_list.txt"
+FILE_MOVIES_NOTFOUND="_Movies_not_found.txt"
+FILE_MOVIES_FOUND="_Movies_found.txt"
 
 CHAR_NOTFOUND="-"
 
@@ -181,15 +181,30 @@ do
 done <<< "$MOVIES"
 echo
 
-# Write not found movies to file
-rm -f "$FILE_NOTFOUND"
+#TODO: Get TMDb movie titles
+#Maybe replace getTMDbID function with getTMDbInfo --> return "ID,title"
+#TITLE=blabla
+
+# Create files for found and not found movies
+rm -f "$FILE_MOVIES_FOUND"
+rm -f "$FILE_MOVIES_NOTFOUND"
 I=0
 while read -r ID
 do
 	I=$((I+1))
+	
+	# Read line of other variables
+	MOVIE=$(echo "$MOVIES" | sed -n ${I}p)
+	TITLE=$(echo "$TITLES" | sed -n ${I}p)
+	
+	# Sort out not found movies
 	if [ "$ID" == "-" ]
 	then
-		echo "$MOVIES" | sed -n ${I}p >> "$FILE_NOTFOUND"
+		echo "$MOVIE" >> "$FILE_MOVIES_NOTFOUND"
+	else
+		echo -n "$ID," >> "$FILE_MOVIES_FOUND"
+		echo -n "$MOVIE," >> "$FILE_MOVIES_FOUND"
+		echo "$TITLE" >> "$FILE_MOVIES_FOUND"
 	fi
 done <<< "$IDS"
 
