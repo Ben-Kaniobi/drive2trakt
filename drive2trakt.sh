@@ -58,6 +58,8 @@ FILE_MOVIES="_Movies.txt"
 FILE_NOTFOUND="_Not_found_Movies.txt"
 FILE_FOUND="_Found_Movies.txt"
 
+CHAR_NOTFOUND="-"
+
 # Import config file
 source "./config.sh"
 
@@ -116,7 +118,7 @@ function getTMDbID {
 	TEMP=$(curl --silent "http://api.themoviedb.org/3/search/movie?api_key=$TMDB_APIKEY&query=$TEMP&year=$YEAR")
 	# Get the ID from the data
 	TEMP=$(jsonval "$TEMP" "id")
-	if [ "$TEMP" == "" ]; then TEMP="-"; fi
+	if [ "$TEMP" == "" ]; then TEMP="$CHAR_NOTFOUND"; fi
 	echo "$TEMP"
 }
 
@@ -152,8 +154,8 @@ then
 else
 	N=$(echo -n "$MOVIES" | grep -c '^')
 fi
-
 echo "$N movie files found"
+
 # Exit if no file found
 if [ "$N" -le 0 ]; then exit $SUCCESS; fi
 
@@ -191,5 +193,5 @@ do
 	fi
 done <<< "$IDS"
 
-# Remove ID 0 which was used for not found movies
-IDS=$(echo "$IDS" | perl -pe "s/^0\n?$//g")
+# Remove ID character which was used for not found movies
+IDS=$(echo "$IDS" | perl -pe "s/^$CHAR_NOTFOUND\n?$//g")
