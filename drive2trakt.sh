@@ -53,6 +53,11 @@ fi
 
 # Config file inport and global variables ------------------------------
 
+# Variables
+FILE_MOVIES="_Movies.txt"
+FILE_NOTFOUND="_Not_found_Movies.txt"
+FILE_FOUND="_Found_Movies.txt"
+
 # Import config file
 source "./config.sh"
 
@@ -141,9 +146,19 @@ else
 fi
 
 # Count movies
-N=$(echo -n "$MOVIES" | grep -c '^')
+if [ "$MOVIES" == "" ]
+then
+	N=0
+else
+	N=$(echo -n "$MOVIES" | grep -c '^')
+fi
+
 echo "$N movie files found"
-echo -n "$MOVIES" > "_Movies.txt"
+# Exit if no file found
+if [ "$N" -le 0 ]; then exit $SUCCESS; fi
+
+# Save movie list to file
+echo -n "$MOVIES" > "$FILE_MOVIES"
 
 # Get TMDb ID for each movie
 echo -n "Getting TMDb IDs: 0 %"
@@ -165,14 +180,14 @@ done <<< "$MOVIES"
 echo
 
 # Write not found movies to file
-rm -f "_Movies_not_found.txt"
+rm -f "$FILE_NOTFOUND"
 I=0
 while read -r ID
 do
 	I=$((I+1))
 	if [ "$ID" == "-" ]
 	then
-		echo "$MOVIES" | sed -n ${I}p >> "_Movies_not_found.txt"
+		echo "$MOVIES" | sed -n ${I}p >> "$FILE_NOTFOUND"
 	fi
 done <<< "$IDS"
 
