@@ -1,0 +1,7 @@
+# Ignore all
+*
+
+# Don't ignore these
+!.gitignore
+!README.md
+!*.sh
