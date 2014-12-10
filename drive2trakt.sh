@@ -57,6 +57,7 @@ FILE_MOVIES_NOTFOUND="_Movies_not_found.txt"
 FILE_MOVIES_FOUND="_Movies_found.txt"
 
 CHAR_NOTFOUND="-"
+CHAR_IDSEPARATOR=", "
 
 # Import config file
 source "./config.sh"
@@ -95,7 +96,7 @@ function jsonval {
 	else
 		echo "$TEMP"
 	fi
-} 
+}
 
 # Get TMDb ID from title (language doesn't matter)
 # param: movie title
@@ -124,7 +125,91 @@ function getTMDbInfo {
 	fi
 	# Get the title from the data
 	TITLE=$(jsonval "$TEMP" "title")
-	echo "$ID,$TITLE"
+	echo "$ID$CHAR_IDSEPARATOR$TITLE"
+}
+
+# Scan directory for movie files, get TMDb info for each and create a file with the list.
+# param: directory to scan
+function createScanFile {
+	# Generate password hash if not specified already
+	if [ "$PASSHASH" == "" ]
+	then
+		PASSHASH=$(echo -n "$PASSWORD" | openssl dgst -sha1)
+	fi
+
+	# Check TMDb API key
+	TEMP=$(curl --silent "http://api.themoviedb.org/3/movie/11?api_key=$TMDB_APIKEY")
+	TEMP1=$(jsonval "$TEMP" "status_code")
+	if [ "$TEMP1" != "" ] && [ "$TEMP1" != "1" ]
+	then
+		echo-err "TMDb Error $TEMP1 - "'"'$(jsonval "$TEMP" "status_message")'"'
+		exit $ERROR
+	fi
+
+	# Get movie list
+	if [ "$OPT_R" = true ]
+	then
+		MOVIES=$(getMovies "$1" "--recursive")
+	else
+		MOVIES=$(getMovies "$1")
+	fi
+
+	# Count movies
+	if [ "$MOVIES" == "" ]
+	then
+		N=0
+	else
+		N=$(echo -n "$MOVIES" | grep -c '^')
+	fi
+	echo "$N movie files found"
+
+	# Exit if no file found
+	if [ "$N" -le 0 ]; then exit $SUCCESS; fi
+
+	# Save movie list to file
+	echo -e "List of the scanned movies:\n" > "$FILE_MOVIES"
+	echo -n "$MOVIES" >> "$FILE_MOVIES"
+
+	# Get TMDb info for each movie
+	echo -n "Getting TMDb info: 0 %"
+	I=0
+	while read -r MOVIE
+	do
+		I=$((I+1))
+		
+		TMDB_INFO=$(getTMDbInfo "$MOVIE")
+		if [ "$TMDB_INFOLIST" == "" ]
+		then
+			TMDB_INFOLIST="$TMDB_INFO"
+		else
+			TMDB_INFOLIST=$(echo -e "$TMDB_INFOLIST\n$TMDB_INFO")
+		fi
+		
+		echo -en "\e[0K\rGetting TMDb info: $((100 * I / N)) %"
+	done <<< "$MOVIES"
+	echo
+	echo
+
+	# Create new files for found and not found movies
+	echo -e "List list of movies for which no match could be found (Note: If you have a year in a movie file name it is extracted and used to improve the search, the downside is that a wrong year completely prevents finding the movie):\n" > "$FILE_MOVIES_NOTFOUND"
+	echo -e "List of movies for which a match could be found. Your title and the datebase title is listed so you can check for any mistakes. This file will be used in the next step to add the movies to your trakt.tv account. If you want to correct something in the file, make sure you also change the ID to the correct TMDb ID as only this number will actually used.\n\nScheme: ID$CHAR_IDSEPARATOR""datebase title$CHAR_IDSEPARATOR""your title\n" > "$FILE_MOVIES_FOUND"
+	I=0
+	while read -r TMDB_INFO
+	do
+		I=$((I+1))
+		
+		# Read same line of other variable
+		MOVIE=$(echo "$MOVIES" | sed -n ${I}p)
+		
+		# Sort out not found movies
+		if [ "$TMDB_INFO" == "-" ]
+		then
+			echo "$MOVIE" >> "$FILE_MOVIES_NOTFOUND"
+		else
+			echo -n "$TMDB_INFO$CHAR_IDSEPARATOR" >> "$FILE_MOVIES_FOUND"
+			echo "$MOVIE" >> "$FILE_MOVIES_FOUND"
+		fi
+	done <<< "$TMDB_INFOLIST"
 }
 
 # Start of main script part --------------------------------------------
@@ -133,94 +218,23 @@ function getTMDbInfo {
 if [ -e "$FILE_MOVIES_FOUND" ]; then
 	echo -n "File $FILE_MOVIES_FOUND already exists. The script can use this file or start a new scan. "
 	while true; do
-		read -p "Start new scan and overwrite existing file? [Y/n] " SCAN
+		read -p "Start new scan (overwrite existing file)? [Y/n] " SCAN
 		case "$SCAN" in
 			[Nn]* ) SCAN=false; break;;
 			[Yy]* ) SCAN=true; break;;
 		esac
 	done
+	echo
 else
 	SCAN=true
 fi
-#TODO: Handle variable SCAN
 
-# Generate password hash if not specified already
-if [ "$PASSHASH" == "" ]
+# Start scan and get TMDb info
+if [ "$SCAN" == true ]
 then
-	PASSHASH=$(echo -n "$PASSWORD" | openssl dgst -sha1)
+	createScanFile "$DIR"
+	echo "Files created:"
+	echo ' - "'"$FILE_MOVIES"'": List of the scanned movies.'
+	echo ' - "'"$FILE_MOVIES_NOTFOUND"'": List list of movies for which no match could be found.'
+	echo ' - "'"$FILE_MOVIES_FOUND"'": List of the movies for which a match could be found. Your title and the datebase title is listed so you can check for any mistakes.'
 fi
-
-# Check TMDb API key
-TEMP=$(curl --silent "http://api.themoviedb.org/3/movie/11?api_key=$TMDB_APIKEY")
-TEMP1=$(jsonval "$TEMP" "status_code")
-if [ "$TEMP1" != "" ] && [ "$TEMP1" != "1" ]
-then
-	echo-err "TMDb Error $TEMP1 - "'"'$(jsonval "$TEMP" "status_message")'"'
-	exit $ERROR
-fi
-
-# Get movie list
-if [ "$OPT_R" = true ]
-then
-	MOVIES=$(getMovies "$DIR" "--recursive")
-else
-	MOVIES=$(getMovies "$DIR")
-fi
-
-# Count movies
-if [ "$MOVIES" == "" ]
-then
-	N=0
-else
-	N=$(echo -n "$MOVIES" | grep -c '^')
-fi
-echo "$N movie files found"
-
-# Exit if no file found
-if [ "$N" -le 0 ]; then exit $SUCCESS; fi
-
-# Save movie list to file
-echo -n "$MOVIES" > "$FILE_MOVIES"
-
-# Get TMDb info for each movie
-echo -n "Getting TMDb info: 0 %"
-I=0
-while read -r MOVIE
-do
-	I=$((I+1))
-	
-	TMDB_INFO=$(getTMDbInfo "$MOVIE")
-	if [ "$TMDB_INFOLIST" == "" ]
-	then
-		TMDB_INFOLIST="$TMDB_INFO"
-	else
-		TMDB_INFOLIST=$(echo -e "$TMDB_INFOLIST\n$TMDB_INFO")
-	fi
-	
-	echo -en "\e[0K\rGetting TMDb info: $((100 * I / N)) %"
-done <<< "$MOVIES"
-echo
-
-# Create new files for found and not found movies
-rm -f "$FILE_MOVIES_FOUND"
-rm -f "$FILE_MOVIES_NOTFOUND"
-I=0
-while read -r TMDB_INFO
-do
-	I=$((I+1))
-	
-	# Read same line of other variable
-	MOVIE=$(echo "$MOVIES" | sed -n ${I}p)
-	
-	# Sort out not found movies
-	if [ "$TMDB_INFO" == "-" ]
-	then
-		echo "$MOVIE" >> "$FILE_MOVIES_NOTFOUND"
-	else
-		echo -n "$TMDB_INFO," >> "$FILE_MOVIES_FOUND"
-		echo "$MOVIE" >> "$FILE_MOVIES_FOUND"
-	fi
-done <<< "$TMDB_INFOLIST"
-
-# Remove lines of not found movies
-TMDB_INFOLIST=$(echo "$TMDB_INFOLIST" | perl -pe "s/^$CHAR_NOTFOUND\n?$//g")
