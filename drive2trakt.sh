@@ -130,10 +130,10 @@ function getTMDbInfo {
 # Start of main script part --------------------------------------------
 
 # Check if file with found movies already exists from previous run
-if [ -e "$FILE_FOUND" ]; then
-	echo "File "_IDs.txt" already exists. The script can use this file or start a new scan."
+if [ -e "$FILE_MOVIES_FOUND" ]; then
+	echo -n "File $FILE_MOVIES_FOUND already exists. The script can use this file or start a new scan. "
 	while true; do
-		read -p "Start new scan and overwrite existing file? (y/n) " SCAN
+		read -p "Start new scan and overwrite existing file? [Y/n] " SCAN
 		case "$SCAN" in
 			[Nn]* ) SCAN=false; break;;
 			[Yy]* ) SCAN=true; break;;
