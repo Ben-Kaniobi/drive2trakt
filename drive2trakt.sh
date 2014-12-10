@@ -88,7 +88,7 @@ function getMovies {
 # Get first value for key
 # param 1: data
 # param 2: key
-function jsonval {
+function getJSONValue {
 	TEMP=$(echo "$1" | perl -pe 's/^.*?"'"$2"'":"?([^,"]*)"?.*$/\1/')
 	if [ "$TEMP" == "$1" ]
 	then
@@ -116,7 +116,7 @@ function getTMDbInfo {
 	# Get the data
 	TEMP=$(curl --silent "http://api.themoviedb.org/3/search/movie?api_key=$TMDB_APIKEY&query=$TEMP&year=$YEAR")
 	# Get the ID from the data
-	ID=$(jsonval "$TEMP" "id")
+	ID=$(getJSONValue "$TEMP" "id")
 	if [ "$ID" == "" ]
 	then
 		# Movie not found, return defined 'not found' character and exit function
@@ -124,25 +124,19 @@ function getTMDbInfo {
 		exit $SUCCESS
 	fi
 	# Get the title from the data
-	TITLE=$(jsonval "$TEMP" "title")
+	TITLE=$(getJSONValue "$TEMP" "title")
 	echo "$ID$CHAR_IDSEPARATOR$TITLE"
 }
 
 # Scan directory for movie files, get TMDb info for each and create a file with the list.
 # param: directory to scan
 function createScanFile {
-	# Generate password hash if not specified already
-	if [ "$PASSHASH" == "" ]
-	then
-		PASSHASH=$(echo -n "$PASSWORD" | openssl dgst -sha1)
-	fi
-
-	# Check TMDb API key
+	# Test TMDb API key
 	TEMP=$(curl --silent "http://api.themoviedb.org/3/movie/11?api_key=$TMDB_APIKEY")
-	TEMP1=$(jsonval "$TEMP" "status_code")
+	TEMP1=$(getJSONValue "$TEMP" "status_code")
 	if [ "$TEMP1" != "" ] && [ "$TEMP1" != "1" ]
 	then
-		echo-err "TMDb Error $TEMP1 - "'"'$(jsonval "$TEMP" "status_message")'"'
+		echo-err "TMDb error $TEMP1 - "'"'$(getJSONValue "$TEMP" "status_message")'"'
 		exit $ERROR
 	fi
 
@@ -212,11 +206,32 @@ function createScanFile {
 	done <<< "$TMDB_INFOLIST"
 }
 
+# Send JSON data to server
+# param 1: address
+# param 2: json data
+function sendJSON {
+	curl --silent -H "Content-Type: application/json" -d "$2" "$1"
+}
+
 # Update the trakt account (specivied in "config.sh") with the movies
 # param: movie list
 function updateTraktAccount {
+	# Generate password hash if not specified already
+	if [ "$PASSHASH" == "" ]
+	then
+		PASSHASH=$(echo -n "$PASSWORD" | openssl dgst -sha1)
+	fi
+
+	# Test trakt.tv account
+	DATA='{"username":"'"$TRAKT_USER"'","password":"'"$TRAKT_PASSHASH"'"}'
+	DATA=$(sendJSON "http://api.trakt.tv/account/test/1$TRAKT_APIKEY" "$DATA")
+	VALUE=$(getJSONValue "$DATA" "status")
+	if [ "$VALUE" != "success" ]
+	then
+		echo-err "trakt.tv error - "'"'$(getJSONValue "$DATA" "error")'"'
+		exit $ERROR
+	fi
 	#TODO
-	echo "$1"
 }
 
 # Start of main script part --------------------------------------------
