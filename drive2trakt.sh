@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# TODO: TMDb -> We currently rate limit requests to 30 requests every 10 seconds.
-
 # Error- and argument handling -----------------------------------------
 
 # Exit on error
@@ -101,7 +99,7 @@ function jsonval {
 
 # Get TMDb ID from title (language doesn't matter)
 # param: movie title
-function getTMDbID {	
+function getTMDbInfo {	
 	# Extract year
 	YEAR=$(echo "$1" | perl -pe "s/^.*($YEARTAG).*$/\1/g")
 	if [ "$YEAR" == "$1" ]
@@ -117,9 +115,16 @@ function getTMDbID {
 	# Get the data
 	TEMP=$(curl --silent "http://api.themoviedb.org/3/search/movie?api_key=$TMDB_APIKEY&query=$TEMP&year=$YEAR")
 	# Get the ID from the data
-	TEMP=$(jsonval "$TEMP" "id")
-	if [ "$TEMP" == "" ]; then TEMP="$CHAR_NOTFOUND"; fi
-	echo "$TEMP"
+	ID=$(jsonval "$TEMP" "id")
+	if [ "$ID" == "" ]
+	then
+		# Movie not found, return defined 'not found' character and exit function
+		echo "$CHAR_NOTFOUND"
+		exit $SUCCESS
+	fi
+	# Get the title from the data
+	TITLE=$(jsonval "$TEMP" "title")
+	echo "$ID,$TITLE"
 }
 
 # Start of main script part --------------------------------------------
@@ -177,51 +182,45 @@ if [ "$N" -le 0 ]; then exit $SUCCESS; fi
 # Save movie list to file
 echo -n "$MOVIES" > "$FILE_MOVIES"
 
-# Get TMDb ID for each movie
-echo -n "Getting TMDb IDs: 0 %"
+# Get TMDb info for each movie
+echo -n "Getting TMDb info: 0 %"
 I=0
 while read -r MOVIE
 do
 	I=$((I+1))
 	
-	ID=$(getTMDbID "$MOVIE")
-	if [ "$IDS" == "" ]
+	TMDB_INFO=$(getTMDbInfo "$MOVIE")
+	if [ "$TMDB_INFOLIST" == "" ]
 	then
-		IDS="$ID"
+		TMDB_INFOLIST="$TMDB_INFO"
 	else
-		IDS=$(echo -e "$IDS\n$ID")
+		TMDB_INFOLIST=$(echo -e "$TMDB_INFOLIST\n$TMDB_INFO")
 	fi
 	
-	echo -en "\e[0K\rGetting TMDb IDs: $((100 * I / N)) %"
+	echo -en "\e[0K\rGetting TMDb info: $((100 * I / N)) %"
 done <<< "$MOVIES"
 echo
 
-#TODO: Get TMDb movie titles
-#Maybe replace getTMDbID function with getTMDbInfo --> return "ID,title"
-#TITLE=blabla
-
-# Create files for found and not found movies
+# Create new files for found and not found movies
 rm -f "$FILE_MOVIES_FOUND"
 rm -f "$FILE_MOVIES_NOTFOUND"
 I=0
-while read -r ID
+while read -r TMDB_INFO
 do
 	I=$((I+1))
 	
-	# Read line of other variables
+	# Read same line of other variable
 	MOVIE=$(echo "$MOVIES" | sed -n ${I}p)
-	TITLE=$(echo "$TITLES" | sed -n ${I}p)
 	
 	# Sort out not found movies
-	if [ "$ID" == "-" ]
+	if [ "$TMDB_INFO" == "-" ]
 	then
 		echo "$MOVIE" >> "$FILE_MOVIES_NOTFOUND"
 	else
-		echo -n "$ID," >> "$FILE_MOVIES_FOUND"
-		echo -n "$MOVIE," >> "$FILE_MOVIES_FOUND"
-		echo "$TITLE" >> "$FILE_MOVIES_FOUND"
+		echo -n "$TMDB_INFO," >> "$FILE_MOVIES_FOUND"
+		echo "$MOVIE" >> "$FILE_MOVIES_FOUND"
 	fi
-done <<< "$IDS"
+done <<< "$TMDB_INFOLIST"
 
-# Remove ID character which was used for not found movies
-IDS=$(echo "$IDS" | perl -pe "s/^$CHAR_NOTFOUND\n?$//g")
+# Remove lines of not found movies
+TMDB_INFOLIST=$(echo "$TMDB_INFOLIST" | perl -pe "s/^$CHAR_NOTFOUND\n?$//g")
