@@ -212,6 +212,13 @@ function createScanFile {
 	done <<< "$TMDB_INFOLIST"
 }
 
+# Update the trakt account (specivied in "config.sh") with the movies
+# param: movie list
+function updateTraktAccount {
+	#TODO
+	echo "$1"
+}
+
 # Start of main script part --------------------------------------------
 
 # Check if file with found movies already exists from previous run
@@ -237,4 +244,22 @@ then
 	echo ' - "'"$FILE_MOVIES"'": List of the scanned movies.'
 	echo ' - "'"$FILE_MOVIES_NOTFOUND"'": List list of movies for which no match could be found.'
 	echo ' - "'"$FILE_MOVIES_FOUND"'": List of the movies for which a match could be found. Your title and the datebase title is listed so you can check for any mistakes.'
+	echo
 fi
+
+# Wait for user before continuing
+while true; do
+	read -p "Continue with updating your trakt.tv collection? [Y/n] " SCAN
+	case "$SCAN" in
+		[Nn]* ) exit $SUCCESS;;
+		[Yy]* ) break;;
+	esac
+done
+
+# Read file with movie list
+MOVIES=$(<"$FILE_MOVIES_FOUND")
+# Keep only the IDs
+MOVIES=$(echo "$MOVIES" | perl -pe "s/^ *([0-9]*).*$/\1/g" | perl -pe "s/^\s*$//g")
+
+# Add the movies to the trakt.tv account
+updateTraktAccount "$DIR"
