@@ -217,14 +217,14 @@ function sendJSON {
 # param: movie list
 function updateTraktAccount {
 	# Generate password hash if not specified already
-	if [ "$PASSHASH" == "" ]
+	if [ "$TRAKT_PASSHASH" == "" ]
 	then
-		PASSHASH=$(echo -n "$PASSWORD" | openssl dgst -sha1)
+		TRAKT_PASSHASH=$(echo -n "$TRAKT_PASSWORD" | openssl dgst -sha1)
 	fi
 
 	# Test trakt.tv account
 	DATA='{"username":"'"$TRAKT_USER"'","password":"'"$TRAKT_PASSHASH"'"}'
-	DATA=$(sendJSON "http://api.trakt.tv/account/test/1$TRAKT_APIKEY" "$DATA")
+	DATA=$(sendJSON "http://api.trakt.tv/account/test/$TRAKT_APIKEY" "$DATA")
 	VALUE=$(getJSONValue "$DATA" "status")
 	if [ "$VALUE" != "success" ]
 	then
