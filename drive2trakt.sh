@@ -65,7 +65,8 @@ CHAR_IDSEPARATOR=", "
 BATCH_SIZE=1000
 
 # Import config file
-source "./config.sh"
+SCRIPTDIR=$(dirname "$0")
+source "$SCRIPTDIR/config.sh"
 
 # Function definitions -------------------------------------------------
 
@@ -214,7 +215,7 @@ function createScanFile {
 		fi
 	done <<< "$TMDB_INFOLIST"
 	
-	echo "Files created:"
+	echo "Files created (in current directory):"
 	echo ' - "'"$FILE_MOVIES"'": List of the scanned movies.'
 	echo ' - "'"$FILE_MOVIES_NOTFOUND"'": List list of movies for which no match could be found.'
 	echo ' - "'"$FILE_MOVIES_FOUND"'": List of the movies for which a match could be found. Your title and the datebase title is listed so you can check for any mistakes.'
@@ -238,6 +239,9 @@ function updateTraktAccount {
 		TRAKT_PASSHASH=$(echo -n "$TRAKT_PASSWORD" | openssl dgst -sha1)
 	fi
 
+	echo
+	echo "Communicating with trakt.tv..."
+	
 	# Test trakt.tv account
 	DATA='{"username":"'"$TRAKT_USER"'","password":"'"$TRAKT_PASSHASH"'"}'
 	DATA=$(sendJSON "http://api.trakt.tv/account/test/$TRAKT_APIKEY" "$DATA")
@@ -247,6 +251,7 @@ function updateTraktAccount {
 		echo-err "trakt.tv error - "'"'$(getJSONValue "$DATA" "error")'"'
 		return $ERROR
 	fi
+	echo "Account information ok, continuing with movies (this may take a while)..."
 	
 	# Return if there are no movies
 	MOVIES="$1"
@@ -277,8 +282,7 @@ function updateTraktAccount {
 	JSON_IDS="$JSON_IDS]"
 	# Put JSON data of movies and user information together
 	DATA='{"username":"'"$TRAKT_USER"'","password":"'"$TRAKT_PASSHASH"'","movies":'"$JSON_IDS"'}'
-	echo
-	echo "Communicating with trakt.tv..."
+	
 	# Send data to the 'add library' link with POST and read response
 	INFO=$(sendJSON "http://api.trakt.tv/movie/library/$TRAKT_APIKEY" "$DATA")
 	# Format JSON data to more readable text
@@ -288,7 +292,8 @@ function updateTraktAccount {
 	INFO=$(echo "$INFO" | perl -pe 's/"? *} */ /g')                # Format end of nested JSON objects
 	INFO=$(echo "$INFO" | perl -pe 's/"? *, *"?/\n/g')             # Format space between key/value pairs
 	echo "$INFO" > "$FILE_RESULT"
-	echo 'File "'"$FILE_RESULT"'" created: Contains information about updating your library'
+	echo 'File "'"$FILE_RESULT"'" created (in current directory):'
+	echo ' Contains information about updating your library'
 	
 	# Check if updating 'seen' too
 	if [ "$OPT_S" == true ]
@@ -302,7 +307,8 @@ function updateTraktAccount {
 		INFO=$(echo "$INFO" | perl -pe 's/"? *} */ /g')                # Format end of nested JSON objects
 		INFO=$(echo "$INFO" | perl -pe 's/"? *, *"?/\n/g')             # Format space between key/value pairs
 		echo "$INFO" > "$FILE_RESULT_SEEN"
-		echo 'File "'"$FILE_RESULT_SEEN"'" created: Contains information about updating your "seen" list'
+		echo 'File "'"$FILE_RESULT_SEEN"'" created (in current directory):'
+		echo ' Contains information about updating your "seen" list'
 	fi
 	
 	# Check if updating 'watchlist' too
@@ -317,7 +323,8 @@ function updateTraktAccount {
 		INFO=$(echo "$INFO" | perl -pe 's/"? *} */ /g')                # Format end of nested JSON objects
 		INFO=$(echo "$INFO" | perl -pe 's/"? *, *"?/\n/g')             # Format space between key/value pairs
 		echo "$INFO" > "$FILE_RESULT_WATCHLIST"
-		echo 'File "'"$FILE_RESULT_WATCHLIST"'" created: Contains information about updating your watchlist'
+		echo 'File "'"$FILE_RESULT_WATCHLIST"'" created (in current directory):'
+		echo ' Contains information about updating your watchlist'
 	fi
 }
 
@@ -325,7 +332,7 @@ function updateTraktAccount {
 
 # Check if file with found movies already exists from previous run
 if [ -e "$FILE_MOVIES_FOUND" ]; then
-	echo -n "File $FILE_MOVIES_FOUND already exists. The script can use this file or start a new scan. "
+	echo -n 'File "'"$FILE_MOVIES_FOUND"'" already exists. The script can use this file or start a new scan. '
 	while true; do
 		read -p "Start new scan (overwrite existing file)? [Y/n] " SCAN
 		case "$SCAN" in
