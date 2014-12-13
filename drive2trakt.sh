@@ -95,14 +95,22 @@ function getMovies {
 # Get first value for key
 # param 1: data
 # param 2: key
-# retval:  value
+# retval:  value or "" if not found
 function getJSONValue {
-	TEMP=$(echo "$1" | perl -pe 's/^.*?"'"$2"'":"?([^,"]*)"?.*$/\1/')
-	if [ "$TEMP" == "$1" ]
+	# Remove lists and JSON objects inside
+	TEMP=$(echo "$1" | perl -pe 's/(^[^{]*{)|}[^}]*$//g')
+	TEMP=$(echo "$TEMP" | perl -pe 's/\[[^\[\]]*\]/\[\]/g')
+	TEMP=$(echo "$TEMP" | perl -pe 's/{[^{}]*}/{}/g')
+	# Extract value of the first occurrence of the key
+	TEMP1=$(echo "$TEMP" | perl -pe 's/^.*?"'"$2"'":"?([^,"]*)"?.*$/\1/')
+	# Input and output of previous line are equal if key wasn't found
+	if [ "$TEMP1" == "$TEMP" ]
 	then
+		# Return empty value
 		echo ""
 	else
-		echo "$TEMP"
+		# Return value
+		echo "$TEMP1"
 	fi
 }
 
