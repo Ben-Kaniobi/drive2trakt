@@ -67,6 +67,7 @@ source "./config.sh"
 # Get the movies in current directory
 # param 1: directory (optional)
 # param 2: additional options for the 'ls' command (see 'ls --help', optional)
+# retval:  list of found movies
 function getMovies {
 	# Get all video files
 	TEMP=$(ls -1 $2 $1 | grep --ignore-case -E "\.($VIDEOEXT)$")
@@ -88,6 +89,7 @@ function getMovies {
 # Get first value for key
 # param 1: data
 # param 2: key
+# retval:  value
 function getJSONValue {
 	TEMP=$(echo "$1" | perl -pe 's/^.*?"'"$2"'":"?([^,"]*)"?.*$/\1/')
 	if [ "$TEMP" == "$1" ]
@@ -99,7 +101,8 @@ function getJSONValue {
 }
 
 # Get TMDb ID from title (language doesn't matter)
-# param: movie title
+# param:  movie title
+# retval: TMDb ID
 function getTMDbInfo {	
 	# Extract year
 	YEAR=$(echo "$1" | perl -pe "s/^.*($YEARTAG).*$/\1/g")
@@ -121,7 +124,7 @@ function getTMDbInfo {
 	then
 		# Movie not found, return defined 'not found' character and exit function
 		echo "$CHAR_NOTFOUND"
-		exit $SUCCESS
+		return $SUCCESS
 	fi
 	# Get the title from the data
 	TITLE=$(getJSONValue "$TEMP" "title")
@@ -129,7 +132,8 @@ function getTMDbInfo {
 }
 
 # Scan directory for movie files, get TMDb info for each and create a file with the list.
-# param: directory to scan
+# param:  directory to scan
+# retval: none (echoes info)
 function createScanFile {
 	# Test TMDb API key
 	TEMP=$(curl --silent "http://api.themoviedb.org/3/movie/11?api_key=$TMDB_APIKEY")
@@ -137,7 +141,7 @@ function createScanFile {
 	if [ "$TEMP1" != "" ] && [ "$TEMP1" != "1" ]
 	then
 		echo-err "TMDb error $TEMP1 - "'"'$(getJSONValue "$TEMP" "status_message")'"'
-		exit $ERROR
+		return $ERROR
 	fi
 
 	# Get movie list
@@ -157,8 +161,8 @@ function createScanFile {
 	fi
 	echo "$N movie files found"
 
-	# Exit if no file found
-	if [ "$N" -le 0 ]; then exit $SUCCESS; fi
+	# Return if no file found
+	if [ "$N" -le 0 ]; then return $SUCCESS; fi
 
 	# Save movie list to file
 	echo -e "List of the scanned movies:\n" > "$FILE_MOVIES"
@@ -186,7 +190,7 @@ function createScanFile {
 
 	# Create new files for found and not found movies
 	echo -e "List list of movies for which no match could be found (Note: If you have a year in a movie file name it is extracted and used to improve the search, the downside is that a wrong year completely prevents finding the movie):\n" > "$FILE_MOVIES_NOTFOUND"
-	echo -e "List of movies for which a match could be found. Your title and the datebase title is listed so you can check for any mistakes. This file will be used in the next step to add the movies to your trakt.tv account. If you want to correct something in the file, make sure you also change the ID to the correct TMDb ID as only this number will actually used.\n\nScheme: ID$CHAR_IDSEPARATOR""datebase title$CHAR_IDSEPARATOR""your title\n" > "$FILE_MOVIES_FOUND"
+	echo -e "List of movies for which a match could be found. Your title and the datebase title is listed so you can check for any mistakes. This file will be used in the next step to add the movies to your trakt.tv account. If you want to correct something in the file, make sure you also change the ID to the correct TMDb ID (eg. https://www.themoviedb.org/movie/11-star-wars-episode-iv-a-new-hope --> ID=11) as only this number will actually used.\n\nScheme: ID$CHAR_IDSEPARATOR""datebase title$CHAR_IDSEPARATOR""your title\n" > "$FILE_MOVIES_FOUND"
 	I=0
 	while read -r TMDB_INFO
 	do
@@ -209,12 +213,14 @@ function createScanFile {
 # Send JSON data to server
 # param 1: address
 # param 2: json data
+# retval:  none
 function sendJSON {
 	curl --silent -H "Content-Type: application/json" -d "$2" "$1"
 }
 
 # Update the trakt account (specivied in "config.sh") with the movies
-# param: movie list
+# param:  movie list
+# retval: none (echoes info)
 function updateTraktAccount {
 	# Generate password hash if not specified already
 	if [ "$TRAKT_PASSHASH" == "" ]
@@ -229,7 +235,7 @@ function updateTraktAccount {
 	if [ "$VALUE" != "success" ]
 	then
 		echo-err "trakt.tv error - "'"'$(getJSONValue "$DATA" "error")'"'
-		exit $ERROR
+		return $ERROR
 	fi
 	#TODO
 }
@@ -277,4 +283,4 @@ MOVIES=$(<"$FILE_MOVIES_FOUND")
 MOVIES=$(echo "$MOVIES" | perl -pe "s/^ *([0-9]*).*$/\1/g" | perl -pe "s/^\s*$//g")
 
 # Add the movies to the trakt.tv account
-updateTraktAccount "$DIR"
+updateTraktAccount "$MOVIES"
