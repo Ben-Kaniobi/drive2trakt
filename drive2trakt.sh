@@ -8,11 +8,11 @@ set -o errexit
 ERROR=1
 SUCCESS=0
 USAGE="Usage: `basename $0` [OPTION]... [DIR]
-Searches for movie files in DIR and add them to the collection of the trakt.tv user.
+Searches for movie files in DIR and add them to the library of the trakt.tv user.
 
   -r, --recursive            search subdirectories recursively
-  -s, --seen                 submit to seen too
-  -w, --watchlist            submit to watchlist too
+  -s, --seen                 add movies to seen list too
+  -w, --watchlist            add movies to watchlist too
       --help                 display this info"
 function echo-err { echo "$@" >&2; }
 
@@ -56,6 +56,8 @@ FILE_MOVIES="_Movie_list.txt"
 FILE_MOVIES_NOTFOUND="_Movies_not_found.txt"
 FILE_MOVIES_FOUND="_Movies_found.txt"
 FILE_RESULT="_Result.txt"
+FILE_RESULT_SEEN="_Result_seen.txt"
+FILE_RESULT_WATCHLIST="_Result_watchlist.txt"
 
 CHAR_NOTFOUND="-"
 CHAR_IDSEPARATOR=", "
@@ -276,16 +278,47 @@ function updateTraktAccount {
 	# Put JSON data of movies and user information together
 	DATA='{"username":"'"$TRAKT_USER"'","password":"'"$TRAKT_PASSHASH"'","movies":'"$JSON_IDS"'}'
 	echo
-	# Send data to the server with POST and read response
-	DATA=$(sendJSON "http://api.trakt.tv/movie/library/$TRAKT_APIKEY" "$DATA")
+	echo "Communicating with trakt.tv..."
+	# Send data to the 'add library' link with POST and read response
+	INFO=$(sendJSON "http://api.trakt.tv/movie/library/$TRAKT_APIKEY" "$DATA")
 	# Format JSON data to more readable text
-	DATA=$(echo "$DATA" | perl -pe 's/(^{ *"?)|( *"?}$)//g')       # Remove beginning and end
-	DATA=$(echo "$DATA" | perl -pe 's/"? *: *"?/ : /g')            # Format space between key and value
-	DATA=$(echo "$DATA" | perl -pe 's/"? *}? *,? *{ *"?/\n\  /g')  # Format ident and space of nested JSON objects
-	DATA=$(echo "$DATA" | perl -pe 's/"? *} */ /g')                # Format end of nested JSON objects
-	DATA=$(echo "$DATA" | perl -pe 's/"? *, *"?/\n/g')             # Format space between key/value pairs
-	echo "$DATA" > "$FILE_RESULT"
-	echo 'File "'"$FILE_RESULT"'" created: Contains information about updating your collection'
+	INFO=$(echo "$INFO" | perl -pe 's/(^{ *"?)|( *"?}$)//g')       # Remove beginning and end
+	INFO=$(echo "$INFO" | perl -pe 's/"? *: *"?/ : /g')            # Format space between key and value
+	INFO=$(echo "$INFO" | perl -pe 's/"? *}? *,? *{ *"?/\n\  /g')  # Format ident and space of nested JSON objects
+	INFO=$(echo "$INFO" | perl -pe 's/"? *} */ /g')                # Format end of nested JSON objects
+	INFO=$(echo "$INFO" | perl -pe 's/"? *, *"?/\n/g')             # Format space between key/value pairs
+	echo "$INFO" > "$FILE_RESULT"
+	echo 'File "'"$FILE_RESULT"'" created: Contains information about updating your library'
+	
+	# Check if updating 'seen' too
+	if [ "$OPT_S" == true ]
+	then
+		# Send data to the 'add seen' link with POST and read response
+		INFO=$(sendJSON "http://api.trakt.tv/movie/seen/$TRAKT_APIKEY" "$DATA")
+		# Format JSON data to more readable text
+		INFO=$(echo "$INFO" | perl -pe 's/(^{ *"?)|( *"?}$)//g')       # Remove beginning and end
+		INFO=$(echo "$INFO" | perl -pe 's/"? *: *"?/ : /g')            # Format space between key and value
+		INFO=$(echo "$INFO" | perl -pe 's/"? *}? *,? *{ *"?/\n\  /g')  # Format ident and space of nested JSON objects
+		INFO=$(echo "$INFO" | perl -pe 's/"? *} */ /g')                # Format end of nested JSON objects
+		INFO=$(echo "$INFO" | perl -pe 's/"? *, *"?/\n/g')             # Format space between key/value pairs
+		echo "$INFO" > "$FILE_RESULT_SEEN"
+		echo 'File "'"$FILE_RESULT_SEEN"'" created: Contains information about updating your "seen" list'
+	fi
+	
+	# Check if updating 'watchlist' too
+	if [ "$OPT_W" == true ]
+	then
+		# Send data to the 'add seen' link with POST and read response
+		INFO=$(sendJSON "http://api.trakt.tv/movie/watchlist/$TRAKT_APIKEY" "$DATA")
+		# Format JSON data to more readable text
+		INFO=$(echo "$INFO" | perl -pe 's/(^{ *"?)|( *"?}$)//g')       # Remove beginning and end
+		INFO=$(echo "$INFO" | perl -pe 's/"? *: *"?/ : /g')            # Format space between key and value
+		INFO=$(echo "$INFO" | perl -pe 's/"? *}? *,? *{ *"?/\n\  /g')  # Format ident and space of nested JSON objects
+		INFO=$(echo "$INFO" | perl -pe 's/"? *} */ /g')                # Format end of nested JSON objects
+		INFO=$(echo "$INFO" | perl -pe 's/"? *, *"?/\n/g')             # Format space between key/value pairs
+		echo "$INFO" > "$FILE_RESULT_WATCHLIST"
+		echo 'File "'"$FILE_RESULT_WATCHLIST"'" created: Contains information about updating your watchlist'
+	fi
 }
 
 # Start of main script part --------------------------------------------
@@ -313,8 +346,23 @@ then
 fi
 
 # Wait for user before continuing
+OPTION="library"
+OPTIONS=""
+if [ "$OPT_S" == true ]
+then
+	OPTIONS="$OPTIONS, seen list"
+fi
+if [ "$OPT_W" == true ]
+then
+	OPTIONS="$OPTIONS, watchlist"
+fi
+if [ "$OPT_S" == true ] || [ "$OPT_W" == true ] 
+then
+	OPTION="collection (library$OPTIONS)"
+fi
+echo "Next step: Updating your trakt.tv $OPTION"
 while true; do
-	read -p "Continue with updating your trakt.tv collection? [Y/n] " SCAN
+	read -p "Continue? [Y/n] " SCAN
 	case "$SCAN" in
 		[Nn]* ) exit $SUCCESS;;
 		[Yy]* ) break;;
