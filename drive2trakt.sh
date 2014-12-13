@@ -173,10 +173,14 @@ function createScanFile {
 	else
 		N=$(echo -n "$MOVIES" | grep -c '^')
 	fi
-	echo "$N movie files found"
 
-	# Return if no file found
-	if [ "$N" -le 0 ]; then return $SUCCESS; fi
+	# Don't continue if no file found
+	if [ "$N" -le 0 ]
+	then
+		echo-err "No movie files found"
+		return $ERROR
+	fi
+	echo "$N movie files found"
 
 	# Save movie list to file
 	echo -e "List of the scanned movies:\n" > "$FILE_MOVIES"
