@@ -55,9 +55,12 @@ fi
 FILE_MOVIES="_Movie_list.txt"
 FILE_MOVIES_NOTFOUND="_Movies_not_found.txt"
 FILE_MOVIES_FOUND="_Movies_found.txt"
+FILE_RESULT="_Result.txt"
 
 CHAR_NOTFOUND="-"
 CHAR_IDSEPARATOR=", "
+
+BATCH_SIZE=1000
 
 # Import config file
 source "./config.sh"
@@ -237,7 +240,47 @@ function updateTraktAccount {
 		echo-err "trakt.tv error - "'"'$(getJSONValue "$DATA" "error")'"'
 		return $ERROR
 	fi
-	#TODO
+	
+	# Return if there are no movies
+	MOVIES="$1"
+	if [ "$MOVIES" == "" ]
+	then
+		return $SUCCESS
+	fi
+	N=$(echo -n "$MOVIES" | grep -c '^')
+	
+	
+	# Create list of TMDb IDs in JSON format
+	I=0
+	while read -r MOVIE
+	do
+		I=$((I+1))
+		
+		JSON_ID='{"tmdb_id":"'"$MOVIE"'"}'
+		
+		if [ "$JSON_IDS" == "" ]
+		then
+			# Beginning of list
+			JSON_IDS="[$JSON_ID"
+		else
+			# Continuing list, seperate with comma
+			JSON_IDS="$JSON_IDS,$JSON_ID"
+		fi
+	done <<< "$MOVIES"
+	# Properly end the list
+	JSON_IDS="$JSON_IDS]"
+	
+	# Put JSON data of movies and user information together
+	DATA='{"username":"'"$TRAKT_USER"'","password":"'"$TRAKT_PASSHASH"'","movies":'"$JSON_IDS"'}'
+	# Send data to the server with POST and read response
+	DATA=$(sendJSON "http://api.trakt.tv/movie/library/$TRAKT_APIKEY" "$DATA")
+	# Format JSON data to more readable text
+	DATA=$(echo "$DATA" | perl -pe 's/(^{ *"?)|( *"?}$)//g')       # Remove beginning and end
+	DATA=$(echo "$DATA" | perl -pe 's/"? *: *"?/ : /g')            # Format space between key and value
+	DATA=$(echo "$DATA" | perl -pe 's/"? *}? *,? *{ *"?/\n\  /g')  # Format ident and space of nested JSON objects
+	DATA=$(echo "$DATA" | perl -pe 's/"? *} */ /g')                # Format end of nested JSON objects
+	DATA=$(echo "$DATA" | perl -pe 's/"? *, *"?/\n/g')             # Format space between key/value pairs
+	echo "$DATA" > "$FILE_RESULT"
 }
 
 # Start of main script part --------------------------------------------
@@ -284,3 +327,5 @@ MOVIES=$(echo "$MOVIES" | perl -pe "s/^ *([0-9]*).*$/\1/g" | perl -pe "s/^\s*$//
 
 # Add the movies to the trakt.tv account
 updateTraktAccount "$MOVIES"
+echo
+echo 'File "'"$FILE_RESULT"'" created in which you can find final information about updating your collection.'
