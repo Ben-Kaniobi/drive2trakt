@@ -150,14 +150,34 @@ function getTMDbInfo {
 # retval: none (echoes info)
 function createScanFile {
 	# Test TMDb API key
-	TEMP=$(curl --silent "http://api.themoviedb.org/3/movie/11?api_key=$TMDB_APIKEY")
-	TEMP1=$(getJSONValue "$TEMP" "status_code")
-	if [ "$TEMP1" != "" ] && [ "$TEMP1" != "1" ]
+	DATA=$(curl --silent "http://api.themoviedb.org/3/movie/11?api_key=$TMDB_APIKEY")
+	VALUE=$(getJSONValue "$DATA" "id")
+	if [ "$VALUE" != "11" ]
 	then
-		echo-err "TMDb error $TEMP1 - "'"'$(getJSONValue "$TEMP" "status_message")'"'
-		return $ERROR
+		VALUE=$(getJSONValue "$DATA" "status_code")
+		if [ "$VALUE" != "1" ]
+		then
+			if [ "$VALUE" == "" ]
+			then
+				# Get HTTP status code
+				VALUE=$(curl --silent -I "http://api.themoviedb.org/3/movie/11?api_key=$TMDB_APIKEY" | grep -e "^HTTP")
+				# Extract only number and check if it's OK (200)
+				if [ "$(echo "$VALUE" | perl -pe "s/.*([0-9]{3}).*/\1/g")" != "200" ]
+				then
+					# Output HTTP status
+					echo-err "$VALUE"
+					echo-err "(http://api.themoviedb.org/3/movie/11?api_key=$TMDB_APIKEY)"
+				else
+					echo-err "Unexpected error, maybe try again later"
+				fi
+			else
+				# Output TMDb message
+				echo-err "TMDb error $VALUE - "'"'$(getJSONValue "$DATA" "status_message")'"'
+			fi
+			return $ERROR
+		fi
 	fi
-
+	
 	# Get movie list
 	if [ "$OPT_R" = true ]
 	then
