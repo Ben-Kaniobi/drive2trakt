@@ -211,6 +211,11 @@ function createScanFile {
 			echo "$MOVIE" >> "$FILE_MOVIES_FOUND"
 		fi
 	done <<< "$TMDB_INFOLIST"
+	
+	echo "Files created:"
+	echo ' - "'"$FILE_MOVIES"'": List of the scanned movies.'
+	echo ' - "'"$FILE_MOVIES_NOTFOUND"'": List list of movies for which no match could be found.'
+	echo ' - "'"$FILE_MOVIES_FOUND"'": List of the movies for which a match could be found. Your title and the datebase title is listed so you can check for any mistakes.'
 }
 
 # Send JSON data to server
@@ -249,7 +254,6 @@ function updateTraktAccount {
 	fi
 	N=$(echo -n "$MOVIES" | grep -c '^')
 	
-	
 	# Create list of TMDb IDs in JSON format
 	I=0
 	while read -r MOVIE
@@ -269,9 +273,9 @@ function updateTraktAccount {
 	done <<< "$MOVIES"
 	# Properly end the list
 	JSON_IDS="$JSON_IDS]"
-	
 	# Put JSON data of movies and user information together
 	DATA='{"username":"'"$TRAKT_USER"'","password":"'"$TRAKT_PASSHASH"'","movies":'"$JSON_IDS"'}'
+	echo
 	# Send data to the server with POST and read response
 	DATA=$(sendJSON "http://api.trakt.tv/movie/library/$TRAKT_APIKEY" "$DATA")
 	# Format JSON data to more readable text
@@ -281,6 +285,7 @@ function updateTraktAccount {
 	DATA=$(echo "$DATA" | perl -pe 's/"? *} */ /g')                # Format end of nested JSON objects
 	DATA=$(echo "$DATA" | perl -pe 's/"? *, *"?/\n/g')             # Format space between key/value pairs
 	echo "$DATA" > "$FILE_RESULT"
+	echo 'File "'"$FILE_RESULT"'" created: Contains information about updating your collection'
 }
 
 # Start of main script part --------------------------------------------
@@ -304,10 +309,6 @@ fi
 if [ "$SCAN" == true ]
 then
 	createScanFile "$DIR"
-	echo "Files created:"
-	echo ' - "'"$FILE_MOVIES"'": List of the scanned movies.'
-	echo ' - "'"$FILE_MOVIES_NOTFOUND"'": List list of movies for which no match could be found.'
-	echo ' - "'"$FILE_MOVIES_FOUND"'": List of the movies for which a match could be found. Your title and the datebase title is listed so you can check for any mistakes.'
 	echo
 fi
 
@@ -327,5 +328,3 @@ MOVIES=$(echo "$MOVIES" | perl -pe "s/^ *([0-9]*).*$/\1/g" | perl -pe "s/^\s*$//
 
 # Add the movies to the trakt.tv account
 updateTraktAccount "$MOVIES"
-echo
-echo 'File "'"$FILE_RESULT"'" created in which you can find final information about updating your collection.'
