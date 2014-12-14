@@ -15,7 +15,7 @@ TRAKT_PASSHASH=''
 # Your trakt.tv API key (found here: http://trakt.tv/settings/api) 
 TRAKT_APIKEY=''
 
-# Your themoviedb.org API key (found here: TODO)
+# Your themoviedb.org API key (found here: https://www.themoviedb.org/account/<username>/api-details)
 TMDB_APIKEY=''
 
 

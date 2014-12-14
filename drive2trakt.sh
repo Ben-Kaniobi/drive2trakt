@@ -97,21 +97,58 @@ function getMovies {
 # param 2: key
 # retval:  value or "" if not found
 function getJSONValue {
-	# Remove lists and JSON objects inside
-	TEMP=$(echo "$1" | perl -pe 's/(^[^{]*{)|}[^}]*$//g')
-	TEMP=$(echo "$TEMP" | perl -pe 's/\[[^\[\]]*\]/\[\]/g')
-	TEMP=$(echo "$TEMP" | perl -pe 's/{[^{}]*}/{}/g')
-	# Extract value of the first occurrence of the key
-	TEMP1=$(echo "$TEMP" | perl -pe 's/^.*?"'"$2"'":"?([^,"]*)"?.*$/\1/')
-	# Input and output of previous line are equal if key wasn't found
-	if [ "$TEMP1" == "$TEMP" ]
-	then
-		# Return empty value
-		echo ""
-	else
-		# Return value
-		echo "$TEMP1"
-	fi
+	# Remove any newline characters, because we use lines for matches while processing
+	DATA=$(echo "$1" | tr -d '\n')
+	# Remove [ in the beginning and ] in the end in case the input is a JSON list
+	DATA=$(echo "$DATA" | perl -pe "s/(^[^\{\[]*\[)|(\][^\}\]]*$)//g")
+	# Add a comma before } and ] so all key-value pairs are followed by a comma
+	DATA=$(echo "$DATA" | perl -pe "s/\}/,\}/g")
+	DATA=$(echo "$DATA" | perl -pe "s/\]/,\]/g")
+	
+	# Loop through every character
+	LEVEL=0
+	for (( i=0; i<${#DATA}; i++ ))
+	do
+		CHAR="${DATA:$i:1}"
+		# Get depth of nested JSON objects or lists by incrementing level for { or ] and decrementing for } or ]
+		if [ "$CHAR" == "{" ] || [ "$CHAR" == "[" ]
+		then
+			LEVEL=$((LEVEL+1))
+		elif [ "$CHAR" == "}" ] || [ "$CHAR" == "]" ]
+		then
+			LEVEL=$((LEVEL-1))
+		fi
+		
+		# We only want to accept keys of level 1, so we replace the comma by two commas for deeper levels
+		if [ "$LEVEL" -le 1 ] && [ "$CHAR" == "," ]
+		then
+			DATA1="$DATA1,,"
+		else
+			DATA1="$DATA1$CHAR"
+		fi
+	done
+	
+	# Search for key-value pairs (of level 1 / with two commas) and list every match on a new line
+	DATA1=$(echo "$DATA1" | perl -pe 's/[^"]*("[^":]+"[^:]*:.*?,,)[\}\]]?/\1\n/g')
+	
+	while read -r LINE
+	do
+		# Search for key and if found extract value
+		VALUE=$(echo "$LINE" | perl -pe 's/^[^"]*"'"$2"'"[^:]*:[^"\{\[0-9]*(.*?)[^0-9\}\]"]*,,.*/\1/g')
+		# If key was not found, then the output string is the same as the input string
+		if [ "$VALUE" == "$LINE" ]
+		# Replace with empty string if not found
+		then VALUE=""
+		# Stop loop if found
+		else break
+		fi
+	done <<< "$DATA1"
+	
+	# Make sure it's a proper JSON value (remove previously added commas again)
+	VALUE=$(echo "$VALUE" | perl -pe "s/,\}/\}/g")
+	VALUE=$(echo "$VALUE" | perl -pe "s/,\]/\]/g")
+	
+	echo "$VALUE"
 }
 
 # Get TMDb ID from title (language doesn't matter)
@@ -132,6 +169,7 @@ function getTMDbInfo {
 	TEMP=$(echo "$TEMP" | perl -pe "s/ /+/g")
 	# Get the data
 	TEMP=$(curl --silent "http://api.themoviedb.org/3/search/movie?api_key=$TMDB_APIKEY&query=$TEMP&year=$YEAR")
+	TEMP=$(getJSONValue "$TEMP" "results")
 	# Get the ID from the data
 	ID=$(getJSONValue "$TEMP" "id")
 	if [ "$ID" == "" ]
